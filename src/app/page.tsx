@@ -13,7 +13,6 @@ export default function LandingPage() {
   const [checkingAuth, setCheckingAuth] = useState(true)
   const supabase = createClient()
 
-  // --- 1. Hooks for Interactive Background (Must be top level) ---
   const mouseX = useMotionValue(0)
   const mouseY = useMotionValue(0)
   const springX = useSpring(mouseX, { stiffness: 40, damping: 30 })
@@ -30,10 +29,18 @@ export default function LandingPage() {
     }
     window.addEventListener('mousemove', handleMouseMove)
 
-    supabase.auth.getUser().then(({ data }) => {
-      setUser(data.user)
-      setCheckingAuth(false)
-    })
+    // IMPROVED: Handle both authenticated and guest states
+    const getUser = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        setUser(user)
+      } catch (error) {
+        console.log("Guest Session active")
+      } finally {
+        setCheckingAuth(false)
+      }
+    }
+    getUser()
 
     return () => window.removeEventListener('mousemove', handleMouseMove)
   }, [supabase, mouseX, mouseY])
@@ -47,14 +54,13 @@ export default function LandingPage() {
   return (
     <div className="min-h-screen bg-[#020617] text-white selection:bg-[#0D9488]/30 font-sans overflow-x-hidden relative">
 
-      {/* --- Interactive Antigravity Background --- */}
+      {/* --- Interactive Background --- */}
       <div className="fixed inset-0 z-0 pointer-events-none">
         <motion.div style={{ x: springX, y: springY }} className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] bg-[#0D9488]/10 blur-[100px] rounded-full" />
         <motion.div style={{ x: secondX, y: secondY }} className="absolute top-1/3 left-1/3 -translate-x-1/2 -translate-y-1/2 w-[280px] h-[280px] bg-purple-600/10 blur-[80px] rounded-full" />
       </div>
 
       <div className="relative z-10">
-        {/* --- Navigation --- */}
         <nav className="flex justify-between items-center px-6 py-4 max-w-6xl mx-auto border-b border-white/5 backdrop-blur-md sticky top-0">
           <div className="flex items-center gap-2 text-[#2DD4BF]">
             <PlaneTakeoff size={24} strokeWidth={2.5} />
@@ -62,14 +68,16 @@ export default function LandingPage() {
           </div>
           <div className="flex items-center gap-4">
             {user ? (
-              <Link href="/dashboard" className="bg-[#0D9488] px-5 py-2 rounded-full text-xs font-bold flex items-center gap-2 shadow-lg shadow-teal-500/20">Dashboard <ArrowRight size={14} /></Link>
+              <Link href="/dashboard" className="bg-[#0D9488] px-5 py-2 rounded-full text-xs font-bold flex items-center gap-2 shadow-lg shadow-teal-500/20 transition-all hover:bg-[#14B8A6]">Dashboard <ArrowRight size={14} /></Link>
             ) : (
-              <Link href="/login" className="bg-white text-black px-5 py-2 rounded-full text-xs font-bold hover:scale-105 transition-all">Sign In</Link>
+              <>
+                <Link href="/login" className="text-xs font-bold text-gray-400 hover:text-white transition-all">Sign In</Link>
+                <Link href="/login" className="bg-white text-black px-5 py-2 rounded-full text-xs font-bold hover:scale-105 transition-all">Get Started</Link>
+              </>
             )}
           </div>
         </nav>
 
-        {/* --- Hero Section --- */}
         <section className="pt-20 pb-16 px-4 text-center max-w-4xl mx-auto">
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-teal-500/20 bg-teal-500/5 text-teal-400 text-[9px] font-black uppercase tracking-[0.2em] mb-8">
@@ -82,13 +90,13 @@ export default function LandingPage() {
             <p className="text-gray-400 text-base mb-10 max-w-xl mx-auto leading-relaxed font-medium">
               Generate, design, and publish high-converting content to Facebook in seconds.
             </p>
-            <Link href={user ? "/dashboard/chat" : "/signup"} className="bg-[#0D9488] text-white px-8 py-3.5 rounded-xl font-bold text-sm shadow-xl shadow-teal-500/30 inline-flex items-center gap-2 hover:scale-105 transition-all">
-              {user ? "Open AI Agent" : "Join Pilot Program"} <MessageSquare size={18} />
+            <Link href={user ? "/dashboard/chat" : "/login"} className="bg-[#0D9488] text-white px-8 py-3.5 rounded-xl font-bold text-sm shadow-xl shadow-teal-500/30 inline-flex items-center gap-2 hover:scale-105 transition-all">
+              {user ? "Open AI Agent" : "Start For Free"} <MessageSquare size={18} />
             </Link>
           </motion.div>
         </section>
 
-        {/* --- How It Works Section --- */}
+        {/* Pricing & Features remain visible to all visitors */}
         <section className="py-16 px-6 border-t border-white/5 bg-white/[0.01]">
           <div className="max-w-5xl mx-auto">
             <div className="text-center mb-12">
@@ -110,13 +118,11 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* --- NEW: SaaS Pricing Section --- */}
         <section className="py-20 px-6 max-w-6xl mx-auto">
           <div className="text-center mb-16">
             <h2 className="text-3xl font-black uppercase tracking-widest mb-4">Choose Your Fuel</h2>
             <p className="text-gray-500 font-medium">Scale your social presence with precision.</p>
           </div>
-
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {[
               { name: "Free Pilot", price: "$0", tokens: "50", border: "border-white/5" },
@@ -132,9 +138,9 @@ export default function LandingPage() {
                   <li className="flex items-center gap-2"><Zap size={14} className="text-teal-400" /> Facebook Bridge</li>
                   <li className="flex items-center gap-2"><Zap size={14} className="text-teal-400" /> Priority Support</li>
                 </ul>
-                <button className="w-full py-3.5 rounded-xl bg-white/5 border border-white/10 font-bold text-xs hover:bg-[#0D9488] hover:border-[#0D9488] transition-all">
+                <Link href="/login" className="w-full py-3.5 rounded-xl bg-white/5 border border-white/10 font-bold text-xs hover:bg-[#0D9488] hover:border-[#0D9488] transition-all text-center">
                   Get Started
-                </button>
+                </Link>
               </motion.div>
             ))}
           </div>

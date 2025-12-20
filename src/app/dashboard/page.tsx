@@ -10,7 +10,7 @@ import {
     ArrowUpRight,
     LayoutDashboard,
     Sparkles,
-    ArrowRight // Added this missing import
+    ArrowRight
 } from 'lucide-react'
 
 export default function DashboardPage() {
@@ -26,15 +26,37 @@ export default function DashboardPage() {
                     .select('tokens_balance, plan_type')
                     .eq('id', user.id)
                     .single()
+
+                // Set initial profile state
                 setProfile(data)
             }
         }
         fetchProfile()
+
+        // --- LIVE UPDATE: Listen for changes to the user's tokens or plan ---
+        const channel = supabase
+            .channel('dashboard_updates')
+            .on('postgres_changes',
+                {
+                    event: 'UPDATE',
+                    schema: 'public',
+                    table: 'profiles'
+                },
+                (payload) => {
+                    // Update the UI immediately when the database changes
+                    setProfile(payload.new)
+                }
+            )
+            .subscribe()
+
+        return () => {
+            supabase.removeChannel(channel)
+        }
     }, [supabase])
 
     return (
         <main className="min-h-screen bg-[#020617] text-white p-6 lg:p-12 relative overflow-hidden">
-            {/* Background Glows to match Landing Page */}
+            {/* Background Glows */}
             <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-[#0D9488]/5 blur-[120px] rounded-full pointer-events-none" />
             <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-purple-600/5 blur-[100px] rounded-full pointer-events-none" />
 
@@ -56,26 +78,29 @@ export default function DashboardPage() {
                     </p>
                 </header>
 
-                {/* Token Status Bar */}
+                {/* LIVE Token Status Bar */}
                 <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     className="mb-10 p-6 rounded-[2rem] bg-white/[0.02] border border-white/5 backdrop-blur-xl flex flex-col md:flex-row justify-between items-center gap-6"
                 >
                     <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 bg-teal-500/10 rounded-2xl flex items-center justify-center text-teal-400">
+                        <div className="w-12 h-12 bg-teal-500/10 rounded-2xl flex items-center justify-center text-teal-400 shadow-[0_0_20px_rgba(13,148,136,0.2)]">
                             <Zap size={24} />
                         </div>
                         <div>
                             <p className="text-gray-500 text-[10px] font-bold uppercase tracking-widest">Available Fuel</p>
-                            <h2 className="text-2xl font-black">{profile?.tokens_balance ?? '...'} <span className="text-sm font-medium text-gray-400">Tokens Left</span></h2>
+                            <h2 className="text-2xl font-black">
+                                {profile?.tokens_balance ?? '0'}
+                                <span className="text-sm font-medium text-gray-400 ml-2 uppercase">Tokens Left</span>
+                            </h2>
                         </div>
                     </div>
                     <div className="flex items-center gap-3">
-                        <span className="px-4 py-1.5 rounded-full bg-white/5 border border-white/10 text-[10px] font-bold uppercase tracking-widest text-gray-400">
-                            Plan: {profile?.plan_type ?? 'Loading...'}
+                        <span className="px-4 py-1.5 rounded-full bg-white/5 border border-white/10 text-[10px] font-black uppercase tracking-widest text-teal-400">
+                            Plan: {profile?.plan_type || 'Free Pilot'}
                         </span>
-                        <Link href="/dashboard/settings" className="text-teal-400 text-sm font-bold flex items-center gap-1 hover:underline decoration-2 underline-offset-4">
+                        <Link href="/#pricing" className="text-teal-400 text-sm font-bold flex items-center gap-1 hover:underline decoration-2 underline-offset-4">
                             Upgrade Plan <ArrowUpRight size={16} />
                         </Link>
                     </div>
@@ -83,7 +108,6 @@ export default function DashboardPage() {
 
                 {/* Action Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {/* AI Chat Card */}
                     <motion.div
                         whileHover={{ y: -5 }}
                         className="group p-10 rounded-[2.5rem] bg-white/[0.02] border border-white/5 backdrop-blur-xl hover:bg-white/[0.04] transition-all relative overflow-hidden"
@@ -97,7 +121,7 @@ export default function DashboardPage() {
                             </div>
                             <h3 className="text-2xl font-black mb-3 uppercase tracking-tighter">Start a Mission</h3>
                             <p className="text-gray-500 text-sm leading-relaxed mb-8 font-medium max-w-[240px]">
-                                Initiate a conversation with Gemini to brainstorm and generate high-impact posts.
+                                Brainstorm and generate high-impact posts with Gemini 1.5 Pro.
                             </p>
                             <Link href="/dashboard/chat" className="inline-flex items-center gap-2 bg-[#0D9488] text-white px-8 py-3.5 rounded-xl font-bold text-sm shadow-xl shadow-teal-500/20 hover:bg-[#14B8A6] transition-all">
                                 Open AI Agent <ArrowRight size={18} />
@@ -105,7 +129,6 @@ export default function DashboardPage() {
                         </div>
                     </motion.div>
 
-                    {/* Settings/Account Card */}
                     <motion.div
                         whileHover={{ y: -5 }}
                         className="group p-10 rounded-[2.5rem] bg-white/[0.02] border border-white/5 backdrop-blur-xl hover:bg-white/[0.04] transition-all relative overflow-hidden"
@@ -119,7 +142,7 @@ export default function DashboardPage() {
                             </div>
                             <h3 className="text-2xl font-black mb-3 uppercase tracking-tighter">Bridge Settings</h3>
                             <p className="text-gray-500 text-sm leading-relaxed mb-8 font-medium max-w-[240px]">
-                                Manage your Facebook Page connections and security credentials.
+                                Configure your secure Facebook connection and API credentials.
                             </p>
                             <Link href="/dashboard/settings" className="inline-flex items-center gap-2 border border-white/10 bg-white/5 text-white px-8 py-3.5 rounded-xl font-bold text-sm hover:bg-white/10 transition-all">
                                 Check Status <ArrowRight size={18} />

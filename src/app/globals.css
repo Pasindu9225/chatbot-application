@@ -1,26 +1,37 @@
 @import "tailwindcss";
 
+/* Define your custom SaaS palette */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #020617;
+  --foreground: #ffffff;
+  --accent-teal: #0D9488;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+/* Force the theme to ignore system light/dark mode and stay on your branding */
+body {
+  background-color: #020617 !important;
+  color: #ffffff;
+  /* Use a modern sans-serif stack for that premium SaaS feel */
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/* CUSTOM SCROLLBAR: This hides the scrollbar for that "Neural Link" look */
+@layer utilities {
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* Selection color: Matches your teal branding when users highlight text */
+::selection {
+  background-color: rgba(13, 148, 136, 0.3);
+  color: #ffffff;
 }

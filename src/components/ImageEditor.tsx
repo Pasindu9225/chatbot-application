@@ -2,17 +2,19 @@
 import React, { useState, useRef } from 'react';
 import { Stage, Layer, Image as KonvaImage, Text, Rect } from 'react-konva';
 import useImage from 'use-image';
-import { Download, Type, Save } from 'lucide-react';
+import { Type, Save, Download } from 'lucide-react';
 
 export default function ImageEditor({ imageUrl }: { imageUrl: string }) {
+    // Adding 'anonymous' crossOrigin is vital for downloading images from external storage (Supabase)
     const [image] = useImage(imageUrl, 'anonymous');
     const [text, setText] = useState('Brand New Offer!');
     const stageRef = useRef<any>(null);
 
     const handleDownload = () => {
+        if (!stageRef.current) return;
         const uri = stageRef.current.toDataURL();
         const link = document.createElement('a');
-        link.download = 'pagepilot-production.png';
+        link.download = `pagepilot-${Date.now()}.png`;
         link.href = uri;
         document.body.appendChild(link);
         link.click();
@@ -40,7 +42,7 @@ export default function ImageEditor({ imageUrl }: { imageUrl: string }) {
                     onClick={handleDownload}
                     className="w-full bg-[#0D9488] text-white py-4 rounded-xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-[#14B8A6] transition-all shadow-xl shadow-teal-500/20"
                 >
-                    <Save size={18} /> Export Production Build
+                    <Download size={18} /> Export Production Build
                 </button>
 
                 <p className="text-[10px] text-gray-500 text-center uppercase tracking-widest font-bold">
@@ -54,10 +56,7 @@ export default function ImageEditor({ imageUrl }: { imageUrl: string }) {
                     <Stage width={500} height={500} ref={stageRef}>
                         <Layer>
                             {image && <KonvaImage image={image} width={500} height={500} />}
-
-                            {/* Neon Teal Border Overlay */}
                             <Rect width={500} height={500} stroke="#0D9488" strokeWidth={15} listening={false} />
-
                             <Text
                                 text={text}
                                 fontSize={38}
