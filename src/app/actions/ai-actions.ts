@@ -1,85 +1,56 @@
 "use server";
 
-import { model } from "@/lib/gemini";
+import { textModel, imageModel } from "@/lib/gemini";
 import { createClient } from "@/utils/supabase/server";
 
 export async function generateSocialPost(prompt: string, sessionId: string) {
     const supabase = await createClient();
 
     try {
-        // 1. Get the current user session
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) throw new Error("Unauthorized");
 
-        // 2. Prepare the System Prompt for Gemini
-        const systemPrompt = `Act as a professional Facebook Social Media Manager. 
-    Based on the following request, generate a catchy caption and a high-quality visual.
-    Request: ${prompt}`;
-
-        const result = await model.generateContent(systemPrompt);
-        const response = await result.response;
-
-        let textContent = "";
-        let base64Image = "";
-
-        // 3. Safely extract Text and Image using Optional Chaining
-        const parts = response.candidates?.[0]?.content?.parts;
-
-        if (parts) {
-            for (const part of parts) {
-                if ("text" in part && part.text) {
-                    textContent = part.text;
-                } else if ("inlineData" in part && part.inlineData) {
-                    base64Image = part.inlineData.data;
-                }
-            }
-        }
+        // 1. Generate Text (This usually always works)
+        const textResult = await textModel.generateContent(`Act as a professional Facebook Social Media Manager. Write a catchy caption for: ${prompt}`);
+        const textContent = textResult.response.text();
 
         let finalImageUrl = "";
 
-        // 4. If an image was generated, upload it to Supabase Storage
-        if (base64Image) {
-            const fileName = `${user.id}/${Date.now()}.png`;
-            const imageBuffer = Buffer.from(base64Image, 'base64');
+        // 2. Try to Generate Image (Wrapped in a separate try/catch so it doesn't crash the text)
+        try {
+            const imageResult = await imageModel.generateContent(`Generate a high-quality Facebook post image for: ${prompt}`);
+            const base64Image = imageResult.response.candidates?.[0]?.content?.parts?.find((p: any) => "inlineData" in p)?.inlineData?.data;
 
-            const { data: uploadData, error: uploadError } = await supabase
-                .storage
-                .from('generated-images')
-                .upload(fileName, imageBuffer, {
-                    contentType: 'image/png',
-                    upsert: true
-                });
+            if (base64Image) {
+                const fileName = `${user.id}/${Date.now()}.png`;
+                const imageBuffer = Buffer.from(base64Image, 'base64');
+                const { data: uploadData } = await supabase.storage.from('generated-images').upload(fileName, imageBuffer);
 
-            if (uploadError) throw uploadError;
-
-            // Get the Public URL
-            const { data: { publicUrl } } = supabase.storage.from('generated-images').getPublicUrl(fileName);
-            finalImageUrl = publicUrl;
+                if (uploadData) {
+                    const { data: { publicUrl } } = supabase.storage.from('generated-images').getPublicUrl(fileName);
+                    finalImageUrl = publicUrl;
+                }
+            }
+        } catch (imageErr) {
+            console.log("Image generation failed or not permitted, skipping image.");
         }
 
-        // 5. Save the AI response to the chat_messages table
-        const { data: message, error: dbError } = await supabase
-            .from("chat_messages")
-            .insert({
-                session_id: sessionId,
-                sender: "ai",
-                content: textContent,
-                image_url: finalImageUrl,
-            })
-            .select()
-            .single();
-
-        if (dbError) throw dbError;
+        // 3. Save to Database
+        await supabase.from("chat_messages").insert({
+            session_id: sessionId,
+            sender: "ai",
+            content: textContent,
+            image_url: finalImageUrl || null,
+        });
 
         return {
             success: true,
             text: textContent,
-            imageUrl: finalImageUrl,
-            messageId: message.id
+            imageUrl: finalImageUrl || null
         };
 
     } catch (error: any) {
         console.error("AI Action Error:", error.message);
-        return { success: false, error: error.message };
+        return { success: false, error: "Failed to generate content. Please try again." };
     }
 }

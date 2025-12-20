@@ -2,36 +2,44 @@
 
 import { createClient } from "@/utils/supabase/server";
 
-export async function postToFacebook(imageUrl: string, caption: string) {
+export async function postToFacebook(imageUrl: string | null, caption: string) {
     const supabase = await createClient();
 
     try {
-        // 1. Get the user's saved Facebook credentials
+        // 1. Get the current logged-in user
         const { data: { user } } = await supabase.auth.getUser();
-        if (!user) throw new Error("Please log in first.");
+        if (!user) throw new Error("Unauthorized");
 
+        // 2. Fetch Facebook credentials from the 'profiles' table
         const { data: profile, error: profileError } = await supabase
             .from("profiles")
             .select("fb_page_id, fb_access_token")
             .eq("id", user.id)
             .single();
 
-        if (profileError || !profile?.fb_access_token) {
-            throw new Error("Facebook not configured. Go to Settings.");
+        if (profileError || !profile?.fb_access_token || !profile?.fb_page_id) {
+            throw new Error("Facebook credentials missing. Please check Settings.");
         }
 
-        // 2. Call the Facebook Graph API
-        // We use the /photos endpoint to post an image with a caption
-        const fbUrl = `https://graph.facebook.com/v21.0/${profile.fb_page_id}/photos`;
+        // 3. Determine the endpoint
+        const endpoint = imageUrl
+            ? `https://graph.facebook.com/v21.0/${profile.fb_page_id}/photos`
+            : `https://graph.facebook.com/v21.0/${profile.fb_page_id}/feed`;
 
-        const response = await fetch(fbUrl, {
+        const body: any = {
+            access_token: profile.fb_access_token,
+            message: caption,
+        };
+
+        if (imageUrl) {
+            body.url = imageUrl;
+        }
+
+        // 4. Call the Facebook Graph API
+        const response = await fetch(endpoint, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                url: imageUrl,
-                caption: caption,
-                access_token: profile.fb_access_token,
-            }),
+            body: JSON.stringify(body),
         });
 
         const result = await response.json();
@@ -40,20 +48,21 @@ export async function postToFacebook(imageUrl: string, caption: string) {
             throw new Error(result.error.message);
         }
 
-        // 3. Log the successful post in your database
+        const fbPostId = result.id || result.post_id;
+
+        // 5. NEW: Log the successful post in our database
+        // This allows the History page to display your past work
         await supabase.from("posts").insert({
             user_id: user.id,
             caption: caption,
-            image_path: imageUrl,
-            status: 'published',
-            fb_post_id: result.id,
-            published_at: new Date().toISOString()
+            image_url: imageUrl,
+            fb_post_id: fbPostId
         });
 
-        return { success: true, postId: result.id };
+        return { success: true, fbPostId };
 
     } catch (error: any) {
-        console.error("Facebook Posting Error:", error.message);
+        console.error("Facebook API Error:", error.message);
         return { success: false, error: error.message };
     }
 }
